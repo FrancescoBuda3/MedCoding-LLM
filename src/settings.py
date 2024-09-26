@@ -1,2 +1,2 @@
-OUTPUT_DIR = "./../output/datasets/"
-DATA_DIR = "./../data/"
+OUTPUT_DIR = "./output/datasets/"
+DATA_DIR = "./data/"
