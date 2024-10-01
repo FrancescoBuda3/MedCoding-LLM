@@ -33,7 +33,7 @@ llm = LLM(
     gpu_memory_utilization=.95,
     dtype="auto", 
     enforce_eager=True,
-    max_model_len=7000,
+    max_model_len=8500,
     trust_remote_code=True,
 )
 
@@ -48,16 +48,16 @@ icd10_val = split[split['split'] == 'val']
 icd10_test = split[split['split'] == 'test']
 
 icd10_train_df = notes[notes['_id'].isin(icd10_train['_id'])].reset_index(drop=True)
-notes = icd10_train_df[:5]
+notes = icd10_train_df
 notes["entities"] = [[] for _ in range(len(notes))]
 
 prompts = []
 for index, row in notes.iterrows():
   prompt = [
     {"role": "system", "content": "you are a medical expert"},
-    {"role": "user", "content": "read carefully the following medical note, then i'll tell you what to do.\n\nMedical Note:\n" + row["raw_text"]},
+    {"role": "user", "content": "read carefully the following medical note, then i'll tell you what to do.\n\nMedical Note:\n\"" + row["raw_text"] + "\""},
     {"role": "assistant", "content": "Ok, I've read carefully the content of the medical note."},
-    {"role": "user", "content": "Extract all the most important medical terms from the note and write them in this format:\n- Term1\n- Term2\n- Term3\n...\n\n. Do not include any additional information.\n\nHere is an example to help you understand the task:\n\nExample Note:\n" + exampleText + "\n\nExample terms:\n"+ exampleTerms }
+    {"role": "user", "content": "Extract all the most important medical terms from the note and write them in this format:\n- Term1\n- Term2\n- Term3\n...\n\n. Do not include any additional text.\n\nHere is an example to help you understand the task:\n\nExample Note:\n\"" + exampleText + "\"\n\nExample terms:\n"+ exampleTerms }
   ]
   
   prompts.append((row["note_id"], prompt))
@@ -66,7 +66,7 @@ for index, row in notes.iterrows():
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B-Instruct")
 prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)) for note_id, prompt in prompts]
 
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
 
 for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")):
@@ -78,6 +78,7 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
     generated_text = output.outputs[0].text
     entities = set()
     splitted = generated_text.split("- ")
+    splitted = splitted[1:]
     for term in splitted:
       term = term.replace('\n', '')
       entities.add(term)
