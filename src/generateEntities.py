@@ -60,7 +60,7 @@ args = parser.parse_args()
 START_INDEX = args.startIndex
 END_INDEX = args.endIndex
 
-icd10_train_df = notes[notes['_id'].isin(icd10_train['_id'])].reset_index(drop=True)
+icd10_train_df = notes[notes['_id'].isin(icd10_train['_id'])].sort_values(by='_id').reset_index(drop=True)
 icd10_train_df = icd10_train_df[START_INDEX:END_INDEX]
 notes = icd10_train_df
 notes["entities"] = [[] for _ in range(len(notes))]
@@ -94,6 +94,7 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
     splitted = generated_text.split("- ")
     splitted = splitted[1:]
     for term in splitted:
+      row = notes[notes['note_id'] == ids[i]].index[0]
       term = term.replace('\n', '')
       entities.add(term)
     out_dict = {
