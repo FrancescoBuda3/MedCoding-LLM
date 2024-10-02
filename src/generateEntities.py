@@ -33,7 +33,7 @@ llm = LLM(
     gpu_memory_utilization=.95,
     dtype="auto", 
     enforce_eager=True,
-    max_model_len=8500,
+    max_model_len=10000,
     trust_remote_code=True,
 )
 
@@ -47,7 +47,11 @@ icd10_train = split[split['split'] == 'train']
 icd10_val = split[split['split'] == 'val']
 icd10_test = split[split['split'] == 'test']
 
+START_INDEX = 0
+END_INDEX = 5
+
 icd10_train_df = notes[notes['_id'].isin(icd10_train['_id'])].reset_index(drop=True)
+icd10_train_df = icd10_train_df[START_INDEX:END_INDEX]
 notes = icd10_train_df
 notes["entities"] = [[] for _ in range(len(notes))]
 
