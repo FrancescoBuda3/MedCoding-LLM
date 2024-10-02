@@ -49,7 +49,8 @@ prompts = []
 for index, row in entities.iterrows():
     note_id = row["note_id"]
     ents = row["entities"]
-    golds = notes[notes['note_id'] == note_id]['icd10_diag_titles'].values
+    raw_text = notes[notes['note_id'] == note_id]['raw_text'].values[0]
+    golds = notes[notes['note_id'] == note_id]['icd10_diag_titles'].values[0]
     golds_clean = []
     for gold in golds:
         clean = gold.replace(',','')
@@ -58,13 +59,13 @@ for index, row in entities.iterrows():
         golds_clean.append(clean)
     goldsJoined = '\n- '.join(golds_clean)    
     n = 10
-    groups = [entities[i:i+n] for i in range(0, len(entities), n)]
+    groups = [ents for i in range(0, len(entities), n)]
 
     for group in groups:
         groupJoined = '\n'.join(group)
         prompt = [
             {"role": "system", "content": "you are a medical expert"},
-            {"role": "user", "content": "read carefully the following medical note, then i'll tell you what to do.\n\nMedical Note:\n" + row["raw_text"]},
+            {"role": "user", "content": "read carefully the following medical note, then i'll tell you what to do.\n\nMedical Note:\n\"" + raw_text + "\""},
             {"role": "assistant", "content": "Ok, I've read carefully the content of the medical note."},
             {"role": "user", "content": "These are the medical terms extracted from the note. \n\nTerms:\n"+ groupJoined +"\n\nAssign to each term one of the following label if there is a strong medical connection between them, otherwise just return \"None\": Labels:\n- "+ goldsJoined +"\n\nReturn each pair as a separate item in the following format:\n- term1, label for term1\n- term2, None\n- term3, label for term3\n...\n\nDo not include any additional information."}
         ]
@@ -92,11 +93,12 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
     ids = [el[0] for el in batch]
     outputs = llm.generate(input_prompts, sampling_params, use_tqdm=False)
     for i, output in enumerate(outputs):
-        cleanEntities = set(notes.loc[notes["note_id"] == ids[i], "entities"].values)
-        golds = set(notes.loc[notes["note_id"] == ids[i], "icd10_diag_titles"].values)
+        cleanEntities = set(notes.loc[notes["note_id"] == ids[i], "entities"].values[0])
+        golds = set(notes.loc[notes["note_id"] == ids[i], "icd10_diag_titles"].values[0])
         generated_text = output.outputs[0].text
         splitted = generated_text.split("- ")
         pairs = []
+        pairSet = set()
         for term in splitted:
             term = term.replace('\n', '')
             if ',' in term:
@@ -109,10 +111,12 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
                     else:
                         label = "None"
                     if label != "None" and term in cleanEntities:
-                        pairs.append({
-                            "term": term,
-                            "label": goldTranslator[label]
-                        })
+                        if (term, label) not in pairSet:
+                            pairSet.add((term, label))
+                            pairs.append({
+                                "term": term,
+                                "label": label
+                            })
         out_dict = {
             "note_id": ids[i],
             "pairs": pairs
