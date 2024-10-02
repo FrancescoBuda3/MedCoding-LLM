@@ -7,6 +7,14 @@ from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 from tqdm import tqdm
 import re
+import json
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('startIndex', type=int, help="L'indice di partenza")
+parser.add_argument('endIndex', type=int, help="L'indice di fine")
+
 
 from huggingface_hub import login
 access_token = "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"
@@ -47,8 +55,10 @@ icd10_train = split[split['split'] == 'train']
 icd10_val = split[split['split'] == 'val']
 icd10_test = split[split['split'] == 'test']
 
-START_INDEX = 0
-END_INDEX = 5
+
+args = parser.parse_args()
+START_INDEX = args.startIndex
+END_INDEX = args.endIndex
 
 icd10_train_df = notes[notes['_id'].isin(icd10_train['_id'])].reset_index(drop=True)
 icd10_train_df = icd10_train_df[START_INDEX:END_INDEX]
@@ -86,10 +96,13 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
     for term in splitted:
       term = term.replace('\n', '')
       entities.add(term)
-    notes.loc[notes["note_id"] == ids[i], "entities"] = [entities]
-
-
-notes.to_feather(OUTPUT_DIR + "mimiciv_icd10_entities.feather")
+    out_dict = {
+      "note_id": ids[i],
+      "entities": list(entities)
+    }
+    with open(OUTPUT_DIR + 'ents.jsonl', 'a') as f:
+      json.dump(out_dict, f, ensure_ascii=False)
+      f.write('\n')
     
 
 
