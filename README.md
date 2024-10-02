@@ -1,3 +1,12 @@
 # MedCoding-LLM
 
-per generare le entità eseguire lo script 'entities.sh' con l'indice di inizio come primo argomento e l'indice di fine come secondo argomento
+## Descrizione
+
+...
+
+## Utilizzo
+
+Per generare le entità, esegui lo script `entities.sh` fornendo i seguenti due argomenti:
+
+1. **Indice di inizio**: il valore che indica da quale riga iniziare.
+2. **Indice di fine**: il valore che indica fino a quale riga generare.
