@@ -141,6 +141,6 @@ for index, row in tqdm(entities.iterrows(), desc = "generating pairs"):
             generate_and_save(prompts)
             prompts = []
 
-#generate_and_save(prompts)
+generate_and_save(prompts)
 
 del llm
