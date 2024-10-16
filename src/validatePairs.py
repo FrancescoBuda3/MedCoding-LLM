@@ -32,19 +32,19 @@ from settings import (
 )
 
 notes = pd.read_feather(DATA_DIR + "mimiciv_icd10.feather")[["note_id", "raw_text", "icd10_diag_titles"]]
-
-data = []
-with open(OUTPUT_DIR + "ents.jsonl", 'r') as f:
-    for line in f:
-        data.append(json.loads(line))
-
-df = pd.DataFrame(data)
-
-entities = df
-entities = entities[START_INDEX:END_INDEX]
-entities = entities.merge(notes, how='inner', on='note_id')
 diagnoses = pd.read_csv(DATA_DIR + "d_icd_diagnoses.csv.gz", compression="gzip")
-del notes
+
+dati = []
+with open(OUTPUT_DIR + "tmpPairs.jsonl", 'r') as f:
+    for line in f:
+        dati.append(json.loads(line))
+
+pairs = pd.DataFrame(dati)
+pairs = pairs.groupby('note_id').agg({'pairs': 'sum'}).reset_index()
+pairs = pairs[START_INDEX:END_INDEX]
+pairs = pairs.merge(notes, how='inner', on='note_id')
+
+
 
 goldTranslator = {}
 for index, row in diagnoses.iterrows():
@@ -52,7 +52,6 @@ for index, row in diagnoses.iterrows():
     goldTranslator[clean] = row['long_title']
 
 del diagnoses
-
 
 # Create a sampling params object.
 sampling_params = SamplingParams(
@@ -84,56 +83,59 @@ def generate_and_save(prompts):
         ids = [el[0] for el in batch]
         outputs = llm.generate(input_prompts, sampling_params, use_tqdm=False)
         for i, output in enumerate(outputs):
-            row = entities.loc[entities["note_id"] == ids[i]]
-            cleanEntities = set(row["entities"].values[0])
+            row = pairs.loc[pairs["note_id"] == ids[i]]
+            tmpPairs = []
+            for pair in row["pairs"].values[0]:
+                term = pair["term"]
+                label = pair["label"]
+                tmpPairs.append((term, label))
             golds = set(row["icd10_diag_titles"].values[0])
             generated_text = output.outputs[0].text
             splitted = generated_text.split("- ")
-            pairs = []
-            pairSet = set()
+            pp = []
             for term in splitted:
                 term = term.replace('\n', '')
                 if ',' in term:
                     splitted2 = term.split(", ")
-                    if (len(splitted2) == 2):
+                    if len(splitted2) == 3:
                         term = splitted2[0]
                         label = splitted2[1]
+                        flag = splitted2[2]
                         if label in goldTranslator:
                             label = goldTranslator[label]
                         else:
                             label = "None"
-                        if label != "None" and term in cleanEntities:
-                            if (term, label) not in pairSet:
-                                pairSet.add((term, label))
-                                pairs.append({
-                                    "term": term,
-                                    "label": label
-                                })
+                        if flag == "YES" and (term, label) in tmpPairs:
+                            pp.append({
+                                "term": term,
+                                "label": label
+                            })
             out_dict = {
                 "note_id": ids[i],
-                "pairs": pairs
+                "pairs": pp
             }
-            with open(OUTPUT_DIR + 'tmpPairs.jsonl', 'a') as f:
+
+            with open(OUTPUT_DIR + 'pairs.jsonl', 'a') as f:
                 json.dump(out_dict, f, ensure_ascii=False)
                 f.write('\n')
 
-prompts = []
-for index, row in tqdm(entities.iterrows(), desc = "generating pairs"):
-    note_id = row["note_id"]
-    ents = row["entities"]
-    golds = row['icd10_diag_titles']
-    golds_clean = [gold.replace(',', '') for gold in golds]
-    goldsJoined = '\n- '.join(golds_clean)
-    n = 10
-    groups = [ents[i:i + n] for i in range(0, len(ents), n)]
 
+prompts = []
+for index, row in tqdm(pairs.iterrows(), desc = "validating pairs"):
+    tmpPairs = []
+    for pair in row["pairs"]:
+        term = pair["term"]
+        label = pair["label"]
+        label = label.replace(',', '')
+        tmpPairs.append((term, label))
+    tmpPairsItems = ['- '+pair[0]+ ', '+ pair[1]  for pair in tmpPairs]
+    n = 10
+    groups = [tmpPairsItems[i:i+n] for i in range(0, len(tmpPairsItems), n)]
     for group in groups:
-        groupJoined = '\n'.join(group)
+        tmpPairsJoined = '\n'.join(group)
         prompt = [
             {"role": "system", "content": "you are a medical expert"},
-            {"role": "user", "content": "read carefully the following medical note, then i'll tell you what to do.\n\nMedical Note:\n\"" + row['raw_text'] + "\""},
-            {"role": "assistant", "content": "Ok, I've read carefully the content of the medical note."},
-            {"role": "user", "content": "These are the medical terms extracted from the note. \n\nTerms:\n"+ groupJoined +"\n\nAssign to each term one of the following label if there is a strong medical connection between them, otherwise just return \"None\": Labels:\n- "+ goldsJoined +"\n\nReturn each pair as a separate item in the following format:\n- term1, label for term1\n- term2, None\n- term3, label for term3\n...\n\nDo not include any additional information."}
+            {"role": "user", "content": "Consider the following medical note as context:\n" + row["raw_text"] + "\n\nGiven the following pairs where the first element is a medical term and the second is a label, identify whether there is a medical connection between the term and the label (YES/NO).\n\nPairs:\n" + tmpPairsJoined + "\n\nThe output should follow this format:\n- Term1, Label for Term1, YES\n- Term2, Label for Term2, NO\n- Term3, Label for Term3, MAYBE\n...\n\nDo not include any additional information"}
         ]
 
         prompts.append((row["note_id"], prompt))
@@ -141,6 +143,7 @@ for index, row in tqdm(entities.iterrows(), desc = "generating pairs"):
             generate_and_save(prompts)
             prompts = []
 
-#generate_and_save(prompts)
+generate_and_save(prompts)
 
 del llm
+

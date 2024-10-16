@@ -65,20 +65,6 @@ for index, row in notes.iterrows():
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B-Instruct")
 
-shortPrompts = []
-longPrompts = []
-
-for note_id, prompt in tqdm(prompts, desc="Checking prompt length"):
-    tokenized_prompt = tokenizer.apply_chat_template(prompt, tokenize=True, add_generation_prompt=True)
-    num_tokens = len(tokenized_prompt)  # Conta il numero di token
-    if num_tokens > 8000:
-      longPrompts.append((note_id, prompt))
-    else:
-      shortPrompts.append((note_id, prompt))
-
-
-prompts = shortPrompts
-
 prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)) for note_id, prompt in prompts]
 
 
@@ -92,7 +78,7 @@ llm = LLM(
     gpu_memory_utilization=.95,
     dtype="auto", 
     enforce_eager=True,
-    max_model_len=8000,
+    max_model_len=10000,
     trust_remote_code=True,
 )
 
@@ -120,41 +106,3 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
 
 del llm
 
-prompts = longPrompts
-
-prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)) for note_id, prompt in prompts]
-
-BATCH_SIZE = 2
-prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
-
-# Create an LLM.
-llm = LLM(
-    model="meta-llama/Meta-Llama-3.1-8B-Instruct",
-    gpu_memory_utilization=.95,
-    dtype="auto", 
-    enforce_eager=True,
-    max_model_len=18500,
-    trust_remote_code=True,
-)
-
-for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")):
-  input_prompts = [el[1] for el in batch]
-  ids = [el[0] for el in batch]
-  outputs = llm.generate(input_prompts, sampling_params, use_tqdm=False)
-  for i, output in enumerate(outputs):
-    prompt = output.prompt
-    generated_text = output.outputs[0].text
-    entities = set()
-    splitted = generated_text.split("- ")
-    splitted = splitted[1:]
-    for term in splitted:
-      row = notes[notes['note_id'] == ids[i]].index[0]
-      term = term.replace('\n', '')
-      entities.add(term)
-    out_dict = {
-      "note_id": ids[i],
-      "entities": list(entities)
-    }
-    with open(OUTPUT_DIR + 'ents.jsonl', 'a') as f:
-      json.dump(out_dict, f, ensure_ascii=False)
-      f.write('\n')
