@@ -9,6 +9,11 @@ from sentence_transformers.losses import MultipleNegativesRankingLoss
 from sentence_transformers.training_args import BatchSamplers
 from sentence_transformers.evaluation import TripletEvaluator
 
+from settings import (
+    OUTPUT_DIR,
+    DATA_DIR
+)
+
 
 # 1. Load a model to finetune with 2. (Optional) model card data
 model = SentenceTransformer(
@@ -24,7 +29,7 @@ model = SentenceTransformer(
 # 3. Load a dataset to finetune on
 dataset = load_dataset("FrancescoBuda/mimic10-hard-negatives")
 
-dataset = dataset["train"].train_test_split(test_size=0.2, seed=42)
+dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
 test_dataset = dataset["test"]
 train_dataset = dataset["train"]
 
@@ -37,9 +42,9 @@ args = SentenceTransformerTrainingArguments(
     # Required parameter:
     output_dir="models/mpnet-base-all-nli-triplet",
     # Optional training parameters:
-    num_train_epochs=1,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
+    num_train_epochs=2,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
     learning_rate=2e-5,
     warmup_ratio=0.1,
     fp16=True,  # Set to False if you get an error that your GPU can't run on FP16
@@ -53,6 +58,7 @@ args = SentenceTransformerTrainingArguments(
     save_total_limit=2,
     logging_steps=100,
     run_name="icd10-hard-negatives",  # Will be used in W&B if `wandb` is installed
+    max_input_length=64,
 )
 
 
@@ -67,7 +73,7 @@ trainer = SentenceTransformerTrainer(
 trainer.train()
 
 # 8. Save the trained model
-model.save_pretrained("models/icd10-hard-negatives/final")
+model.save_pretrained("./output/models/icd10-hard-negatives/final")
 
 # 9. (Optional) Push it to the Hugging Face Hub
 model.push_to_hub("icd10-hard-negatives")
