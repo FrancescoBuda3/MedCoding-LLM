@@ -32,7 +32,7 @@ sampling_params = SamplingParams(
     temperature=0.0,
     top_p=1.0,
     max_tokens=1024,
-    use_beam_search=False,
+    #use_beam_search=False,
 )
 
 exampleTerms = "- enlarged right testicle\n- exposure to Brucella\n- edema\n- pain\n- Brucella\n- varicose veins\n- jugular vein engorgement\n- fever\n- febrile syndrome\n- orchiepididymitis\n- osteoarticular pain"
@@ -69,7 +69,7 @@ prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_g
 
 
 
-BATCH_SIZE = 32
+BATCH_SIZE = 72
 prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
 
 # Create an LLM.
@@ -103,6 +103,3 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
     with open(OUTPUT_DIR + 'ents.jsonl', 'a') as f:
       json.dump(out_dict, f, ensure_ascii=False)
       f.write('\n')
-
-del llm
-

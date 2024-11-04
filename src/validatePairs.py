@@ -59,7 +59,7 @@ sampling_params = SamplingParams(
     temperature=0.0,
     top_p=1.0,
     max_tokens=1024,
-    use_beam_search=False,
+    #use_beam_search=False,
 )
 
 # Create an LLM.
@@ -72,7 +72,7 @@ llm = LLM(
     trust_remote_code=True,
 )
 
-BATCH_SIZE = 32
+BATCH_SIZE = 100
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B-Instruct")
 
 def generate_and_save(prompts):
@@ -121,7 +121,7 @@ def generate_and_save(prompts):
 
 
 prompts = []
-for index, row in tqdm(pairs.iterrows(), desc = "validating pairs"):
+for index, row in tqdm(pairs.iterrows(), desc = "validating pairs", total=len(pairs)):
     tmpPairs = []
     for pair in row["pairs"]:
         term = pair["term"]
@@ -144,6 +144,3 @@ for index, row in tqdm(pairs.iterrows(), desc = "validating pairs"):
             prompts = []
 
 generate_and_save(prompts)
-
-del llm
-

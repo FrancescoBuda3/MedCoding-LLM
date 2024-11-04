@@ -1,3 +1,5 @@
+# pip install transformers==4.45.2 sentence-transformers==3.1.1
+
 import logging
 import os
 import wandb
@@ -9,7 +11,7 @@ from sentence_transformers import (
     SentenceTransformerModelCardData,
 )
 from sentence_transformers.models import Transformer, Pooling
-from sentence_transformers.losses import MultipleNegativesRankingLoss
+from sentence_transformers.losses import MultipleNegativesRankingLoss, MatryoshkaLoss
 from sentence_transformers.training_args import BatchSamplers
 from sentence_transformers.evaluation import TripletEvaluator
 
@@ -33,12 +35,9 @@ if __name__ == "__main__":
     login(token=HF_TOKEN)
     wandb.login(key=WB_KEY)
     #
+    matryoshka_dims = [768, 512, 256, 128, 64]
 
     # 1. Load a model to finetune with 2. (Optional) model card data
-    # transformer = Transformer("NeuML/pubmedbert-base-embeddings", max_seq_length=64)
-    # pooling = Pooling(transformer.get_word_embedding_dimension(), "mean")
-    # model = SentenceTransformer(modules=[transformer, pooling])
-
     model_name = "NeuML/pubmedbert-base-embeddings"
     model = SentenceTransformer(model_name)
     model.max_seq_length = 64
@@ -65,7 +64,9 @@ if __name__ == "__main__":
 
 
     # 3. Define a loss function
-    loss = MultipleNegativesRankingLoss(model)
+    inner_train_loss = MultipleNegativesRankingLoss(model)
+    train_loss = MatryoshkaLoss(model, inner_train_loss, matryoshka_dims=matryoshka_dims)
+
 
     # # 4. Define an evaluator for use during training. This is useful to keep track of alongside the evaluation loss.
     # stsb_eval_dataset = load_dataset("sentence-transformers/stsb", split="validation")
@@ -82,12 +83,12 @@ if __name__ == "__main__":
     # 5. (Optional) Specify training arguments
     args = SentenceTransformerTrainingArguments(
         # Required parameter:
-        output_dir="models/pubmedbert-base-embeddings-icd-10-cm-embeddings",
+        output_dir="models/pubmedbert-base-embeddings-icd-10-cm-embeddings-matryoshka",
         # Optional training parameters:
-        num_train_epochs=3,
-        per_device_train_batch_size=256,
-        per_device_eval_batch_size=256,
-        learning_rate=5e-5,
+        num_train_epochs=2,
+        per_device_train_batch_size=128,
+        per_device_eval_batch_size=128,
+        learning_rate=2e-5,
         warmup_ratio=0.1,
         fp16=True,  # Set to False if you get an error that your GPU can't run on FP16
         bf16=False,  # Set to True if you have a GPU that supports BF16
@@ -95,11 +96,11 @@ if __name__ == "__main__":
         # Optional tracking/debugging parameters:
         #eval_strategy="steps",
         #eval_steps=100,
-        save_strategy="epoch",
-        #save_steps=500,
-        #save_total_limit=2,
+        save_strategy="steps",
+        save_steps=100,
+        save_total_limit=2,
         logging_steps=100,
-        run_name="icd-10-cm-embeddings",  # Will be used in W&B if `wandb` is installed
+        run_name="icd-10-cm-embeddings-matryoshka",  # Will be used in W&B if `wandb` is installed
     )
 
 
@@ -109,12 +110,12 @@ if __name__ == "__main__":
         args=args,
         train_dataset=train_dataset,
         #eval_dataset=test_dataset,
-        loss=loss,
+        loss=train_loss,
     )
     trainer.train()
 
     # 8. Save the trained model
-    model.save_pretrained("./models/icd-10-cm-embeddings/final")
+    model.save_pretrained("./models/icd-10-cm-embeddings-matryoshka/final")
 
     # 9. (Optional) Push it to the Hugging Face Hub
-    model.push_to_hub("alecocc/icd-10-cm-embeddings")
+    model.push_to_hub("alecocc/icd-10-cm-embeddings-matryoshka")
