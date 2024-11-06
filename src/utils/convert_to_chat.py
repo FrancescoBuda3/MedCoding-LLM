@@ -17,11 +17,13 @@ from huggingface_hub import login
 access_token = "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"
 login(access_token)
 
-from src.settings import (
-    OUTPUT_DIR,
-    DATA_DIR
-)
+#from src.settings import (
+#    OUTPUT_DIR,
+#    DATA_DIR
+#)
 
+OUTPUT_DIR = "./output/datasets/"
+DATA_DIR = "./data/"
 
 # Load the dataset
 data = pd.read_feather(DATA_DIR + "mimiciv_icd10.feather")[["note_id", "raw_text"]]
