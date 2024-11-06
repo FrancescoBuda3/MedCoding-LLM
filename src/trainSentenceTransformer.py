@@ -85,8 +85,8 @@ if __name__ == "__main__":
         output_dir="models/pubmedbert-base-embeddings-icd-10-cm-embeddings",
         # Optional training parameters:
         num_train_epochs=3,
-        per_device_train_batch_size=256,
-        per_device_eval_batch_size=256,
+        per_device_train_batch_size=128,
+        #per_device_eval_batch_size=128,
         learning_rate=5e-5,
         warmup_ratio=0.1,
         fp16=True,  # Set to False if you get an error that your GPU can't run on FP16
@@ -95,9 +95,9 @@ if __name__ == "__main__":
         # Optional tracking/debugging parameters:
         #eval_strategy="steps",
         #eval_steps=100,
-        save_strategy="epoch",
-        #save_steps=500,
-        #save_total_limit=2,
+        save_strategy="steps",
+        save_steps=500,
+        save_total_limit=2,
         logging_steps=100,
         run_name="icd-10-cm-embeddings",  # Will be used in W&B if `wandb` is installed
     )

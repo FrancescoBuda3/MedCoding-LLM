@@ -1,3 +1,4 @@
+# pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 from unsloth import FastLanguageModel
 from unsloth import is_bfloat16_supported
 from multiprocessing import cpu_count
@@ -29,7 +30,7 @@ dtype = None # None for auto detection. Float16 for Tesla T4, V100, Bfloat16 for
 load_in_4bit = True # Use 4bit quantization to reduce memory usage. Can be False.
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "unsloth/Llama-3.2-3B",
+    model_name = "unsloth/Llama-3.2-1B-Instruct-bnb-4bit",
     max_seq_length = max_seq_length,
     dtype = dtype,
     load_in_4bit = load_in_4bit,
@@ -47,7 +48,7 @@ model = FastLanguageModel.get_peft_model(
     bias = "none",    # Supports any, but = "none" is optimized
     # [NEW] "unsloth" uses 30% less VRAM, fits 2x larger batch sizes!
     use_gradient_checkpointing = "unsloth", # True or "unsloth" for very long context
-    random_state = 3407,
+    random_state = 42,
     use_rslora = False,  # We support rank stabilized LoRA
     loftq_config = None, # And LoftQ
 )
@@ -77,11 +78,12 @@ with open("logs/example_prompt.txt", "a") as f:
     f.write("*"*50)
 
 ### PARAMS ###
-batch_size = 2
-acc_steps = 4
+batch_size = 4
+acc_steps = 8
 lr = 2e-4
+epochs = 2
 
-run_name = f"Llama-ICD-coder-3B-batch{batch_size}-acc{acc_steps}-lr{lr}"
+run_name = f"Llama-ICD-coder-1B-batch{batch_size}-acc{acc_steps}-lr{lr}-seq{max_seq_length}-A100"
 
 trainer = SFTTrainer(
     model = model,
@@ -90,7 +92,7 @@ trainer = SFTTrainer(
     dataset_text_field = "text",
     max_seq_length = max_seq_length,
     data_collator = DataCollatorForSeq2Seq(tokenizer = tokenizer),
-    dataset_num_proc = 2,
+    dataset_num_proc = os.cpu_count(),
     packing = False, # Can make training 5x faster for short sequences.
     args = TrainingArguments(
         per_device_train_batch_size = batch_size,
@@ -101,13 +103,15 @@ trainer = SFTTrainer(
         fp16 = not is_bfloat16_supported(),
         bf16 = is_bfloat16_supported(),
         logging_steps = 50,
-        optim = "adamw_8bit",
+        optim = "adamw_8bit", #adamw_torch_fused", #adamw_8bit",
         weight_decay = 0.01,
         lr_scheduler_type = "cosine",
         seed = 42,
         output_dir = "outputs",
-        num_train_epochs = 3,
-        save_strategy="epoch",
+        num_train_epochs = epochs,
+        save_strategy="steps",
+        save_steps=0.2,
+        save_total_limit = 3,
         run_name=run_name
     ),
 )
