@@ -95,8 +95,6 @@ data = df.merge(data, how="inner", on="note_id")
 
 print(data["selected"])
 
-from unsloth import FastLanguageModel
-
 
 sampling_params = SamplingParams(
     n=1,
@@ -106,12 +104,16 @@ sampling_params = SamplingParams(
     #use_beam_search=False,
 )
 
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "FrancescoBuda/Llama-ICD-coder-3B", 
-    max_seq_length = 16000,
-    dtype = None,
-    load_in_4bit = True,
+model = LLM(
+    model = "FrancescoBuda/Llama-ICD-coder-1B-merged-2ep", 
+    gpu_memory_utilization=.95,
+    dtype="auto", 
+    enforce_eager=True,
+    max_model_len=16000,
+    trust_remote_code=True,
 )
+
+tokenizer = AutoTokenizer.from_pretrained("FrancescoBuda/Llama-ICD-coder-1B-merged-2ep")
 
 sys_prompt = "You are an expert in medical coding, specialized in ICD-10 classifications. Based on the medical note provided by the user, identify and assign the most accurate ICD-10 codes from the list of possible ones."
 
@@ -146,7 +148,8 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
   for i, output in enumerate(outputs):
     generated_text = output.outputs[0].text
     row = data.loc[data["note_id"] == ids[i]]
-    sel = row["selected"]
+    sel = set(row["selected"].values[0])
+    gold = set(row["icd10_diag_titles"].values[0])
     titles = set()
     splitted = generated_text.split("- ")
     splitted = splitted[1:]
@@ -157,11 +160,13 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
         if title in sel:
             titles.add(term)
     out_dict = {
-        "note_id": row["note_id"],
+        "note_id": ids[i],
         "selected": list(titles)
     }
+    print(len(titles.intersection(gold))/len(gold) * 100)
     with open(OUTPUT_DIR + 'defSelected.jsonl', 'a') as f:
         json.dump(out_dict, f, ensure_ascii=False)
         f.write('\n')
+    
 
 

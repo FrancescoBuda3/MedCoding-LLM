@@ -96,7 +96,7 @@ codes = list(codes.union(assignedCodes))
 del assignedCodes, df, icd10_df, icd10_test_df, split, train, val, test
 gc.collect()
 
-data = data.sample(2, random_state=42)
+data = data.sample(10, random_state=42)
 
 titles = assign_title(codes)
 titlesEmbeddings = sentenceTransformerModel.encode(titles)
@@ -147,86 +147,4 @@ for index, row in data.iterrows():
 
 print(f"mean percentage: {meanPercentage / len(data)}")
 print(f"mean num of selected codes: {meanNumCodes / len(data)}")
-
-df = []
-with open(OUTPUT_DIR + "selected.jsonl", 'r') as f:
-    for line in f:
-        df.append(json.loads(line))
-
-df = pd.DataFrame(df)
-
-data = df.merge(data, how="inner", on="note_id")
-
-print(data["selected"])
-
-from unsloth import FastLanguageModel
-
-sampling_params = SamplingParams(
-    n=1,
-    temperature=0.0,
-    top_p=1.0,
-    max_tokens=1024,
-    #use_beam_search=False,
-)
-
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "FrancescoBuda/Llama-ICD-coder-1B-merged", 
-    max_seq_length = 16000,
-    dtype = None,
-    load_in_4bit = True,
-)
-
-sys_prompt = "You are an expert in medical coding, specialized in ICD-10 classifications. Based on the medical note provided by the user, identify and assign the most accurate ICD-10 codes from the list of possible ones."
-
-prompts = []
-for index, row in data.iterrows():
-    input_note = row["raw_text"]
-    sel = row["selected"]
-    sel_clean = [s.replace(',', '') for s in sel]
-    selJoined = '\n- '.join(sel_clean)
-
-    prompt = [
-              {"role": "system", "content": sys_prompt},
-              {"role": "user", "content": f"Read the following medical note carefully:\n{input_note.strip()}"},
-              {"role": "assistant", "content": "Understood, I’ve carefully read the medical note."},
-              {"role": "user", "content": f"Now classify the note by selecting only the applicable ICD-10 codes from this list:\n{selJoined}"},
-    ]
-  
-    prompts.append((row["note_id"], prompt))
-
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B-Instruct")
-
-prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)) for note_id, prompt in prompts]
-
-with open(OUTPUT_DIR + "tmp.txt", "w") as file:
-    file.write(prompts[0][1])
-
-""" BATCH_SIZE = 8
-prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
-
-for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")):
-  input_prompts = [el[1] for el in batch]
-  ids = [el[0] for el in batch]
-  outputs = model.generate(input_prompts, sampling_params, use_tqdm=False)
-  for i, output in enumerate(outputs):
-    generated_text = output.outputs[0].text
-    row = data.loc[data["note_id"] == ids[i]]
-    sel = row["selected"]
-    titles = set()
-    splitted = generated_text.split("- ")
-    splitted = splitted[1:]
-    for term in splitted:
-      term = term.replace('\n', '')
-      if term in goldTranslator:
-        title = goldTranslator[term]
-        if title in sel:
-            titles.add(term)
-    out_dict = {
-        "note_id": row["note_id"],
-        "selected": list(titles)
-    }
-    with open(OUTPUT_DIR + 'defSelected.jsonl', 'a') as f:
-        json.dump(out_dict, f, ensure_ascii=False)
-        f.write('\n') """
-
 
