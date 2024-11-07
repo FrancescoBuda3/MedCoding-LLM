@@ -35,7 +35,7 @@ exampleText = "We describe the case of a 37-year-old man with a previously activ
 
 
 notes = pd.read_feather(DATA_DIR + "test_set_lenghts.feather")
-notes = notes.loc[notes["lenght"] < 8000]
+notes = notes.loc[notes["lenght"] >= 8000]
 
 
 prompts = []
@@ -55,7 +55,7 @@ prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_g
 
 
 
-BATCH_SIZE = 72
+BATCH_SIZE = 16
 prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
 
 # Create an LLM.
@@ -64,7 +64,7 @@ llm = LLM(
     gpu_memory_utilization=.95,
     dtype="auto", 
     enforce_eager=True,
-    max_model_len=8000,
+    max_model_len=16000,
     trust_remote_code=True,
 )
 

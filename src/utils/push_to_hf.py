@@ -1,6 +1,6 @@
 from unsloth import FastLanguageModel
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "../../outputs/checkpoint-3342", # YOUR MODEL USED FOR TRAINING
+    model_name = "./data/checkpoint-3342", # YOUR MODEL USED FOR TRAINING
     max_seq_length = 16000,
     dtype = None,
     load_in_4bit = True,
