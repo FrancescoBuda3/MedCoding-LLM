@@ -80,6 +80,10 @@ icd10_df = pd.read_feather(DATA_DIR + "mimiciv_icd10.feather")
 #icd10_val_df = icd10_df[icd10_df['_id'].isin(val['_id'])].reset_index(drop=True)
 icd10_test_df = icd10_df[icd10_df['_id'].isin(test['_id'])].reset_index(drop=True)
 
+assignedCodes = set([x.replace(".","") for x in icd10_df.icd10_diag.explode().dropna().tolist()])
+codes = list(assignedCodes)
+print(len(codes))
+
 data = []
 with open(OUTPUT_DIR + "testEnts.jsonl", 'r') as f:
     for line in f:
@@ -90,21 +94,22 @@ df = pd.DataFrame(data)
 data = df.merge(icd10_df, how="inner", on="note_id")[["note_id", "entities", "_id", "icd10_diag", "raw_text", "icd10_diag_titles"]]
 
 
-assignedCodes = set([x.replace(".","") for x in data.icd10_diag.explode().dropna().tolist()])
-codes = list(codes.union(assignedCodes))
+#assignedCodes = set([x.replace(".","") for x in data.icd10_diag.explode().dropna().tolist()])
+#codes = list(codes.union(assignedCodes))
 
 del assignedCodes, df, icd10_df, icd10_test_df, split, train, val, test
 gc.collect()
 
-data = data.sample(10, random_state=42)
+data = data.sample(1000, random_state=42)
 
 titles = assign_title(codes)
 titlesEmbeddings = sentenceTransformerModel.encode(titles)
 
-meanPercentage = 0
-meanNumCodes = 0
 
 
+recall50 = 0
+recall100 = 0
+recall200 = 0
 for index, row in data.iterrows():
   selectedCodes = set()
   targetNames = set(assign_title(list(row["icd10_diag"])))
@@ -118,33 +123,40 @@ for index, row in data.iterrows():
         colonna = similarity[:, i].cpu().numpy()
         maxvals[i] = np.max(colonna)
     
-      maxvals = np.argsort(maxvals)[::-1][:100]
-      selectedCodes = set([titles[i] for i in maxvals])
+      maxvals200 = np.argsort(maxvals)[::-1][:200]
+      selectedCodes = set([titles[i] for i in maxvals200])
       intersection = targetNames.intersection(selectedCodes)
-     
-      
       percentage = (len(intersection) / len(targetNames)) * 100
-      print(f"Percentage of targetNames in selectedCodes: {percentage:.2f}%")
-      print(f"num of selected codes: {len(selectedCodes)}")
+      recall200 += percentage
+
+      maxvals100 = np.argsort(maxvals)[::-1][:100]
+      selectedCodes = set([titles[i] for i in maxvals100])
+      intersection = targetNames.intersection(selectedCodes)
+      percentage = (len(intersection) / len(targetNames)) * 100
+      recall100 += percentage
+
+      maxvals50 = np.argsort(maxvals)[::-1][:50]
+      selectedCodes = set([titles[i] for i in maxvals50])
+      intersection = targetNames.intersection(selectedCodes)
+      percentage = (len(intersection) / len(targetNames)) * 100
+      recall50 += percentage
 
       out_dict = {
         "note_id": row["note_id"],
         "selected": list(selectedCodes)
       }
-      
-
   else:
       percentage = 0
       out_dict = {
         "note_id": row["note_id"],
         "selected": []
       }
-  meanPercentage += percentage
-  meanNumCodes += len(selectedCodes)
   with open(OUTPUT_DIR + 'selected.jsonl', 'a') as f:
         json.dump(out_dict, f, ensure_ascii=False)
         f.write('\n')
 
-print(f"mean percentage: {meanPercentage / len(data)}")
-print(f"mean num of selected codes: {meanNumCodes / len(data)}")
+print(f"mean recall 50: {recall50 / len(data)}")
+print(f"mean recall 100: {recall100 / len(data)}")
+print(f"mean recall 200: {recall200 / len(data)}")
+
 

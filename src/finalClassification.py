@@ -138,13 +138,14 @@ prompts = [(note_id, tokenizer.apply_chat_template(prompt, tokenize=False, add_g
 with open(OUTPUT_DIR + "tmp.txt", "w") as file:
     file.write(prompts[0][1])
 
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 prompts_batched = [prompts[i:i+BATCH_SIZE] for i in range(0, len(prompts), BATCH_SIZE)]
-
+meanRecall = 0
+denum = 0
 for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")):
   input_prompts = [el[1] for el in batch]
   ids = [el[0] for el in batch]
-  outputs = model.generate(input_prompts, sampling_params)
+  outputs = model.generate(input_prompts, sampling_params, use_tqdm=False)
   for i, output in enumerate(outputs):
     generated_text = output.outputs[0].text
     row = data.loc[data["note_id"] == ids[i]]
@@ -163,10 +164,13 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
         "note_id": ids[i],
         "selected": list(titles)
     }
-    print(len(titles.intersection(gold))/len(gold) * 100)
+    meanRecall += len(titles.intersection(gold))/len(gold) * 100
+    denum += 1
     with open(OUTPUT_DIR + 'defSelected.jsonl', 'a') as f:
         json.dump(out_dict, f, ensure_ascii=False)
         f.write('\n')
+
+print(meanRecall/denum)
     
 
 
