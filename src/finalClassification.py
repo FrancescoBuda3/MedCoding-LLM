@@ -159,7 +159,7 @@ for id_batch, batch in enumerate(tqdm(prompts_batched, desc="Batches processed")
       if term in goldTranslator:
         title = goldTranslator[term]
         if title in sel:
-            titles.add(term)
+            titles.add(title)
     out_dict = {
         "note_id": ids[i],
         "selected": list(titles)
