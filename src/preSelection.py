@@ -102,7 +102,7 @@ gc.collect()
 
 data = data.sample(1000, random_state=42)
 
-titles = assign_title(codes)
+titles = list(set(assign_title(codes)))
 titlesEmbeddings = sentenceTransformerModel.encode(titles)
 
 
